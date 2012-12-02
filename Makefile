@@ -1,26 +1,24 @@
-fubbit_src := $(wildcard src/*.erl)
-
-.PHONY: all clean eunit test deps cleandeps wipe
+.PHONY: all clean eunit ebin test deps cleandeps wipe
 
 all: deps ebin
 
 deps:
-	rebar get-deps
+	@sh ./get-rabbit-client.sh
+	@./rebar get-deps
 
-ebin: $(fubbit_src)
-	rebar compile
+ebin:
+	@./rebar compile
 
 test: eunit
 
 eunit:
-	./rebar skip_deps=true eunit
+	@./rebar skip_deps=true eunit
 
 clean:
-	./rebar clean
+	@./rebar clean
 
 cleandeps:
-	./rebar delete-deps
+	@./rebar delete-deps
 
 wipe: clean cleandeps
-	@rm log/*
 	@rm *.dump
