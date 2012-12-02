@@ -15,9 +15,6 @@ start() ->
 %% ===================================================================
 
 start(_StartType, _StartArgs) ->
-  % we start supervisor for illustration.
-  % in the real applications please plug fubbit_connection
-  % in a sofo/pool -- one per connection to rabbitmq server.
   fubbit_sup:start_link().
 
 stop(_State) ->
