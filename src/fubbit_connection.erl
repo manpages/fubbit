@@ -70,7 +70,7 @@ connect(PID, ConnectionDict, Origin) ->
   gen_server:call(PID, {connection, ConnectionDict, from, Origin}).
 -spec disconnect(pid()) -> ok.
 disconnect(PID) -> 
-  gen_server:call(PID, disconnect).
+  gen_server:cast(PID, disconnect).
 
 % service calls
 declare_queue(PID, Name) -> Name.
@@ -115,6 +115,10 @@ handle_call({connection, C, from, PID0}, _, State) ->
 handle_call(R, _F, S) ->
   {reply, R, S}.
  
+handle_cast(disconnect, State) ->
+  amqp_channel:close(State#state.channel),
+  amqp_connection:close(State#state.connection),
+  {stop, shutdown, State};
 handle_cast(_, S) ->
   {noreply, S}.
 
