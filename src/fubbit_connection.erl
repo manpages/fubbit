@@ -2,6 +2,8 @@
 
 -behaviour(gen_server).
 
+-include("amqp_client/include/amqp_client.hrl").
+
 %% API
 -export([
 % wroom
@@ -47,17 +49,28 @@
 %% State %%
 %%%%%%%%%%%
 
+-record(state, {
+   from :: pid()
+  ,connection % types?
+  ,channel    % anyone?
+}).
+
 %%%%%%%%%%%%
 %% Macros %%
 %%%%%%%%%%%%
+
 
 %%%%%%%%%
 %% API %%
 %%%%%%%%%
 
 % core
-connect(PID, _X, _Y) -> {ok, fine}.
-disconnect(PID) -> ok.
+-spec connect(pid(), lists:proplist(), pid()) -> ok. %% todo: validate retT
+connect(PID, ConnectionDict, Origin) -> 
+  gen_server:call(PID, {connection, ConnectionDict, from, Origin}).
+-spec disconnect(pid()) -> ok.
+disconnect(PID) -> 
+  gen_server:call(PID, disconnect).
 
 % service calls
 declare_queue(PID, Name) -> Name.
@@ -90,8 +103,15 @@ start_link() ->
   gen_server:start_link(?MODULE, [], []).
 
 init(_A) ->
-  {ok, []}.
+  {ok, #state{}}.
 
+handle_call({connection, C, from, PID0}, _, State) ->
+  {ok, Con} = case proplists:get_value(type, C) of
+    direct -> connect_directly_do(C);
+    _      -> connect_do(C)
+  end,
+  {ok, Chan} = apmq_connection:open_channel(Con),
+  {reply, ok, State#state{from=PID0,connection=Con,channel=Chan}};
 handle_call(R, _F, S) ->
   {reply, R, S}.
  
@@ -107,3 +127,37 @@ code_change(_, S, _) ->
 
 terminate(shutdown, _S) ->
   ok.
+
+%%%%%%%%%%%%%
+%% private %%
+%%%%%%%%%%%%%
+
+-spec connect_directly_do(lists:proplist()) -> {ok, any()}. %any?
+connect_directly_do(C) ->
+  P0 = #amqp_params_direct{},
+  P1 = P0#amqp_params_direct{
+    username=proplists:get_value(username, C, P0#amqp_params_direct.username),
+    password=proplists:get_value(password, C, P0#amqp_params_direct.password),
+    virtual_host=proplists:get_value(virtual_host, C, P0#amqp_params_direct.virtual_host),
+    node=proplists:get_value(node, C, P0#amqp_params_direct.node),
+    client_properties=proplists:get_value(client_properties, C, P0#amqp_params_direct.client_properties)
+  },
+  amqp_connection:start(P1).
+
+-spec connect_do(lists:proplist()) -> {ok, any()}. %any?
+connect_do(C) ->
+  P0 = #amqp_params_network{},
+  P1 = P0#amqp_params_network{
+    username=proplists:get_value(username, C, P0#amqp_params_network.username),
+    password=proplists:get_value(password, C, P0#amqp_params_network.password),
+    virtual_host=proplists:get_value(virtual_host, C, P0#amqp_params_network.virtual_host),
+    host=proplists:get_value(host, C, P0#amqp_params_network.host),
+    port=proplists:get_value(port, C, P0#amqp_params_network.port),
+    channel_max=proplists:get_value(channel_max, C, P0#amqp_params_network.channel_max),
+    frame_max=proplists:get_value(frame_max, C, P0#amqp_params_network.frame_max),
+    heartbeat=proplists:get_value(heartbeat, C, P0#amqp_params_network.heartbeat),
+    ssl_options=proplists:get_value(ssl_options, C, P0#amqp_params_network.ssl_options),
+    auth_mechanisms=proplists:get_value(auth_mechanisms, C, P0#amqp_params_network.auth_mechanisms),
+    client_properties=proplists:get_value(client_properties, C, P0#amqp_params_network.client_properties)
+  },
+  amqp_connection:start(P1).

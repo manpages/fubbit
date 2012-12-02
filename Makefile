@@ -21,4 +21,7 @@ cleandeps:
 	@./rebar delete-deps
 
 wipe: clean cleandeps
-	@rm *.dump
+	@rm *.dump || true
+	@rm -rf ./deps/*
+	@rm -rf ./amqp_client
+	@rm -rf ./rabbit_common

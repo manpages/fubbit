@@ -1,3 +1,5 @@
+rabbit_common
+amqp_client
 .eunit
 deps
 *.o
