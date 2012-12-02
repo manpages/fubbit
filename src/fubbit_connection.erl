@@ -110,7 +110,7 @@ handle_call({connection, C, from, PID0}, _, State) ->
     direct -> connect_directly_do(C);
     _      -> connect_do(C)
   end,
-  {ok, Chan} = apmq_connection:open_channel(Con),
+  {ok, Chan} = amqp_connection:open_channel(Con),
   {reply, ok, State#state{from=PID0,connection=Con,channel=Chan}};
 handle_call(R, _F, S) ->
   {reply, R, S}.
