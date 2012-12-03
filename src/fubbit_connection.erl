@@ -73,7 +73,9 @@ disconnect(PID) ->
   gen_server:cast(PID, disconnect).
 
 % service calls
-declare_queue(PID, Name) -> Name.
+-spec declare_queue(pid(), binary()) -> binary().
+declare_queue(PID, Name) -> 
+  gen_server:call(PID, {declare_queue, Name}).
 declare_queue(PID) -> <<"r4nd0m">>.
 declare_exchange(PID, Name) -> Name.
 delete_queue(PID, _Name) -> ok.
@@ -105,6 +107,16 @@ start_link() ->
 init(_A) ->
   {ok, #state{}}.
 
+-spec handle_call(
+  {connection, lists:proplist(), from, pid()} |
+  {declare_queue, binary()} |
+  declare_queue,
+  pid(), #state{}
+) -> 
+  {reply, 
+  ok | binary(), 
+  #state{}}.
+
 handle_call({connection, C, from, PID0}, _, State) ->
   {ok, Con} = case proplists:get_value(type, C) of
     direct -> connect_directly_do(C);
@@ -112,6 +124,18 @@ handle_call({connection, C, from, PID0}, _, State) ->
   end,
   {ok, Chan} = amqp_connection:open_channel(Con),
   {reply, ok, State#state{from=PID0,connection=Con,channel=Chan}};
+
+handle_call({declare_queue, Name}, _, State) -> 
+  #'queue.declare_ok'{} = amqp_channel:call(
+    State#state.channel,
+    #'queue.declare'{queue = Name}
+  ),
+  {reply, Name, State};
+
+handle_call(declare_queue, _, State) ->
+  #'queue.declare_ok'{queue = Name} = amqp_channel:call(State#state.channel, #'queue.declare'{}),
+  {reply, Name, State};
+
 handle_call(R, _F, S) ->
   {reply, R, S}.
  
