@@ -74,9 +74,10 @@ disconnect(PID) ->
 
 % service calls
 -spec declare_queue(pid(), binary()) -> binary().
-declare_queue(PID, Name) -> 
-  gen_server:call(PID, {declare_queue, Name}).
-declare_queue(PID) -> <<"r4nd0m">>.
+declare_queue(PID, QDict) -> 
+  gen_server:call(PID, {declare_queue, QDict}).
+declare_queue(PID) -> 
+  gen_server:call(PID, declare_queue).
 declare_exchange(PID, Name) -> Name.
 delete_queue(PID, _Name) -> ok.
 delete_exchange(PID, _Name) -> ok.
