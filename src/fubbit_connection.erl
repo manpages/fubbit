@@ -73,12 +73,13 @@ disconnect(PID) ->
   gen_server:cast(PID, disconnect).
 
 % service calls
--spec declare_queue(pid(), binary()) -> binary().
+-spec declare_queue(pid(), lists:proplist()) -> binary().
 declare_queue(PID, QDict) -> 
   gen_server:call(PID, {declare_queue, QDict}).
 declare_queue(PID) -> 
   gen_server:call(PID, declare_queue).
-declare_exchange(PID, Name) -> Name.
+declare_exchange(PID, EDict) ->
+  gen_server:call(PID, {declare_exchange, EDict}).
 delete_queue(PID, _Name) -> ok.
 delete_exchange(PID, _Name) -> ok.
 bind_queue(PID, _Q, _E, _RK) -> ok.
@@ -110,7 +111,10 @@ init(_A) ->
 
 -spec handle_call(
   {connection, lists:proplist(), from, pid()} |
-  {declare_queue, binary()} |
+  {
+    declare_queue |
+    declare_exchange, 
+  lists:proplist()} |
   declare_queue,
   pid(), #state{}
 ) -> 
@@ -126,15 +130,16 @@ handle_call({connection, C, from, PID0}, _, State) ->
   {ok, Chan} = amqp_connection:open_channel(Con),
   {reply, ok, State#state{from=PID0,connection=Con,channel=Chan}};
 
-handle_call({declare_queue, Name}, _, State) -> 
-  #'queue.declare_ok'{} = amqp_channel:call(
+handle_call({declare_queue, C}, _, State) -> 
+  #'queue.declare_ok'{queue=Name} = amqp_channel:call(
     State#state.channel,
-    #'queue.declare'{queue = Name}
+    fubbit_records:'#fromlist-'(C, #'queue.declare'{})
   ),
   {reply, Name, State};
 
 handle_call(declare_queue, _, State) ->
-  #'queue.declare_ok'{queue = Name} = amqp_channel:call(State#state.channel, #'queue.declare'{}),
+  #'queue.declare_ok'{queue=Name} = amqp_channel:call(
+    State#state.channel, #'queue.declare'{}),
   {reply, Name, State};
 
 handle_call(R, _F, S) ->
@@ -163,30 +168,12 @@ terminate(shutdown, _S) ->
 
 -spec connect_directly_do(lists:proplist()) -> {ok, any()}. %any?
 connect_directly_do(C) ->
-  P0 = #amqp_params_direct{},
-  P1 = P0#amqp_params_direct{
-    username=proplists:get_value(username, C, P0#amqp_params_direct.username),
-    password=proplists:get_value(password, C, P0#amqp_params_direct.password),
-    virtual_host=proplists:get_value(virtual_host, C, P0#amqp_params_direct.virtual_host),
-    node=proplists:get_value(node, C, P0#amqp_params_direct.node),
-    client_properties=proplists:get_value(client_properties, C, P0#amqp_params_direct.client_properties)
-  },
-  amqp_connection:start(P1).
+  amqp_connection:start(
+    fubbit_records:'#fromlist-'(C, #amqp_params_direct{})
+  ).
 
 -spec connect_do(lists:proplist()) -> {ok, any()}. %any?
 connect_do(C) ->
-  P0 = #amqp_params_network{},
-  P1 = P0#amqp_params_network{
-    username=proplists:get_value(username, C, P0#amqp_params_network.username),
-    password=proplists:get_value(password, C, P0#amqp_params_network.password),
-    virtual_host=proplists:get_value(virtual_host, C, P0#amqp_params_network.virtual_host),
-    host=proplists:get_value(host, C, P0#amqp_params_network.host),
-    port=proplists:get_value(port, C, P0#amqp_params_network.port),
-    channel_max=proplists:get_value(channel_max, C, P0#amqp_params_network.channel_max),
-    frame_max=proplists:get_value(frame_max, C, P0#amqp_params_network.frame_max),
-    heartbeat=proplists:get_value(heartbeat, C, P0#amqp_params_network.heartbeat),
-    ssl_options=proplists:get_value(ssl_options, C, P0#amqp_params_network.ssl_options),
-    auth_mechanisms=proplists:get_value(auth_mechanisms, C, P0#amqp_params_network.auth_mechanisms),
-    client_properties=proplists:get_value(client_properties, C, P0#amqp_params_network.client_properties)
-  },
-  amqp_connection:start(P1).
+  amqp_connection:start(
+    fubbit_records:'#fromlist-'(C, #amqp_params_network{})
+  ).
