@@ -1,4 +1,4 @@
--module(fubbit_proxy).
+-module(fubbit).
 
 -export([
    proxy/3   % starts fubbit_connection and returns its pid
