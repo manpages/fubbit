@@ -10,22 +10,9 @@
    connect/3 % starts connection and opens channel
   ,disconnect/1  % closes channel, stops connection
 
-% bare bones
-  ,declare_queue/2 % declares queue on current channel
-  ,declare_queue/1 % declares queue with generated name
-  ,declare_exchange/2 % declares exchange
-  ,delete_queue/2 % guess what.
-  ,delete_exchange/2 %
-  ,bind_queue/4 % creates a routing rule
-  ,unbind_queue/4 % destroys a routing rule
-
-% eat 'em some cookies
-  ,publish/4 % sends message, requires exchange and routing key
-  ,publish/3 % sends message, requires routing key
-
-% useless functions
-  ,poll/3 % polls queue, requires no_ack to be set
-  ,poll/2 % polls queue
+% generic wrappers
+  ,mq_cast/3 % asynchronous request to amqp_client
+  ,mq_call/3 % synchronous call to amqp_client
 
 % the main function that does pr0xying
   ,subscribe/2 % subscribes to queue and forwards content
@@ -72,26 +59,15 @@ connect(PID, ConnectionDict, Origin) ->
 disconnect(PID) -> 
   gen_server:cast(PID, disconnect).
 
-% service calls
--spec declare_queue(pid(), lists:proplist()) -> binary().
-declare_queue(PID, QDict) -> 
-  gen_server:call(PID, {declare_queue, QDict}).
-declare_queue(PID) -> 
-  gen_server:call(PID, declare_queue).
-declare_exchange(PID, EDict) ->
-  gen_server:call(PID, {declare_exchange, EDict}).
-delete_queue(PID, _Name) -> ok.
-delete_exchange(PID, _Name) -> ok.
-bind_queue(PID, _Q, _E, _RK) -> ok.
-unbind_queue(PID, _Q, _E, _RK) -> ok.
+% wrappers
+-spec mq_cast(pid(), lists:proplist(), lists:proplist()) -> ok.
+mq_cast(PID, RecSpecDict, ArgDict) ->
+	ok.
 
-% sendnig messages
-publish(PID, _E, _RK, _Msg) -> ok.
-publish(PID, _RK, _Msg) -> ok.
+-spec mq_call(pid(), lists:proplist(), lists:proplist()) -> lists:proplist().
+mq_call(PID, RecSpecDict, ArgDict) ->
+	ok.
 
-% polling queues
-poll(PID, _Q, _NoAck) -> <<"r4nd0m">>.
-poll(PID, _Q) -> <<"r4nd0m">>.
 
 % subscribing to messages from queue to pass messages
 subscribe(PID, _Q) -> ok.
