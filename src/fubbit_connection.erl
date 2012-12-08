@@ -12,6 +12,7 @@
 
 % generic wrappers
   ,mq_run/3
+  ,mq_run/4
 
 % the main function that does pr0xying
   ,subscribe/2 % subscribes to queue and forwards content
@@ -59,6 +60,19 @@ disconnect(PID) ->
   gen_server:cast(PID, disconnect).
 
 % wrappers
+-spec mq_run(pid(), lists:proplist(), lists:proplist(), lists:proplist()) -> any().
+mq_run(PID, ActionDict, ArgDict, PayloadDict) ->
+  try 
+    ActionBin = proplists:get_value(action, ActionDict),
+    io:format("running binary_to_existing_atom with ~n~p~n", [<<"#new-", ActionBin/binary, "_ok">>]),
+    binary_to_existing_atom(<<"#new-", ActionBin/binary, "_ok">>, utf8),
+    io:format("ouch~n"),
+    mq_call(PID, ActionDict, ArgDict, PayloadDict)
+  catch _:_ ->
+    io:format("catch~n"),
+    mq_cast(PID, ActionDict, ArgDict, PayloadDict)
+  end.
+
 -spec mq_run(pid(), lists:proplist(), lists:proplist()) -> any().
 mq_run(PID, ActionDict, ArgDict) ->
   try % fuck me, why there isn't a better way to accomplish that?
@@ -66,19 +80,19 @@ mq_run(PID, ActionDict, ArgDict) ->
     io:format("running binary_to_existing_atom with ~n~p~n", [<<"#new-", ActionBin/binary, "_ok">>]),
     binary_to_existing_atom(<<"#new-", ActionBin/binary, "_ok">>, utf8),
     io:format("ouch~n"),
-    mq_call(PID, ActionDict, ArgDict)
+    mq_call(PID, ActionDict, ArgDict, [])
   catch _:_ ->
     io:format("catch~n"),
-    mq_cast(PID, ActionDict, ArgDict)
+    mq_cast(PID, ActionDict, ArgDict, [])
   end.
 
--spec mq_cast(pid(), lists:proplist(), lists:proplist()) -> ok.
-mq_cast(PID, ActionDict, ArgDict) ->
-  gen_server:cast(PID, {mq_cast, ActionDict, ArgDict}).
+-spec mq_cast(pid(), lists:proplist(), lists:proplist(), lists:proplist()) -> ok.
+mq_cast(PID, ActionDict, ArgDict, PayloadDict) ->
+  gen_server:cast(PID, {mq_cast, ActionDict, ArgDict, PayloadDict}).
 
--spec mq_call(pid(), lists:proplist(), lists:proplist()) -> any().
-mq_call(PID, ActionDict, ArgDict) ->
-  gen_server:call(PID, {mq_call, ActionDict, ArgDict, []}).
+-spec mq_call(pid(), lists:proplist(), lists:proplist(), lists:proplist()) -> any().
+mq_call(PID, ActionDict, ArgDict, PayloadDict) ->
+  gen_server:call(PID, {mq_call, ActionDict, ArgDict, PayloadDict}).
 
 % subscribing to messages from queue to pass messages
 subscribe(_PID, _Q) -> ok.
@@ -100,7 +114,7 @@ init(_A) ->
 
 -spec handle_call(
   {connection, lists:proplist(), from, pid()} |
-  {mq_call, lists:proplist(), lists:proplist()},
+  {mq_call, lists:proplist(), lists:proplist(), lists:proplist()},
   pid(), #state{}
 ) -> 
   {reply, 
@@ -118,7 +132,6 @@ handle_call({connection, C, from, PID0}, _, State) ->
 handle_call({mq_call, ActionDict, Args, PayloadArgs}, _, S) ->
   io:format("calling the rabbit~n"),
   ActionBin =  proplists:get_value(action, ActionDict),
-  ContentBin = proplists:get_value(content, ActionDict),
   PayloadBin = proplists:get_value(payload, ActionDict),
   NewActionF = binary_to_existing_atom(
     <<"#new-", ActionBin/binary>>, 
@@ -127,7 +140,7 @@ handle_call({mq_call, ActionDict, Args, PayloadArgs}, _, S) ->
   NewPayloadF = case PayloadBin of
     undefined -> undefined; 
     _ -> binary_to_existing_atom(
-      <<"#new-", PayloadBin/binary, "_ok">>,
+      <<"#new-", PayloadBin/binary>>,
       utf8
     )
   end,
@@ -135,13 +148,6 @@ handle_call({mq_call, ActionDict, Args, PayloadArgs}, _, S) ->
     <<ActionBin/binary, "_ok">>,
     utf8
   ),
-  ContentT = case ContentBin of
-    undefined -> undefined;
-    _ -> binary_to_existing_atom(
-      <<ContentBin/binary>>,
-      utf8
-    )
-  end,
 
   Response = case NewPayloadF of
     undefined -> amqp_channel:call(
@@ -161,9 +167,9 @@ handle_call({mq_call, ActionDict, Args, PayloadArgs}, _, S) ->
         io:format("you've never gone too far to let go, all that you believe in.~n"),
         {reply, {ok, { 
           fubbit_records:to_list(OkT, OkRec), 
-          fubbit_records:to_list(ContentT, Content)
+          Content
         }}, S};
-      false -> % as far as I understand the code of amqp_client, that's impossible
+      false -> % sadly, this far consumer of _connection has to handle notoks manually
         io:format("you've never gone too far to turn back.~n"),
         {reply, {notok, {OkRec, Content}}, S}
       end;
@@ -184,7 +190,7 @@ handle_call(R, _F, S) ->
 
 -spec handle_cast(
   disconnect | 
-  {mq_cast, lists:proplist(), lists:proplist()},
+  {mq_cast, lists:proplist(), lists:proplist(), lists:proplist()},
   #state{}
 ) -> {stop, shutdown, #state{}} | 
   {noreply, #state{}}.
@@ -194,19 +200,34 @@ handle_cast(disconnect, State) ->
   amqp_connection:close(State#state.connection),
   {stop, shutdown, State};
 
-handle_cast({mq_cast, ActionDict, Args}, S) ->
+handle_cast({mq_cast, ActionDict, Args, PayloadArgs}, S) ->
   io:format("casting the spell~n"),
-  ActBin =  proplists:get_value(action, ActionDict),
-  New = binary_to_existing_atom(
-    <<"#new-", ActBin/binary>>, 
+  ActionBin =  proplists:get_value(action, ActionDict),
+  PayloadBin = proplists:get_value(payload, ActionDict),
+  NewActionF = binary_to_existing_atom(
+    <<"#new-", ActionBin/binary>>, 
     utf8
   ),
-  % todo: case relying on output_arity, has_payload and action
-  % skip it by now
-  amqp_channel:cast(
-    S#state.channel,
-    fubbit_records:'#fromlist-'(Args, fubbit_records:New())
-  ),
+  NewPayloadF = case PayloadBin of
+    undefined -> undefined; 
+    _ -> binary_to_existing_atom(
+      <<"#new-", PayloadBin/binary>>,
+      utf8
+    )
+  end,
+
+  case NewPayloadF of
+    undefined -> amqp_channel:cast(
+      S#state.channel,
+      fubbit_records:'#fromlist-'(Args, fubbit_records:NewActionF())
+    );
+    _ -> amqp_channel:cast(
+      S#state.channel,
+      fubbit_records:'#fromlist-'(Args, fubbit_records:NewActionF()),
+      fubbit_records:'#fromlist-'(PayloadArgs, fubbit_records:NewPayloadF())
+    )
+  end,
+
   {noreply, S};
 
 handle_cast(_, S) ->
