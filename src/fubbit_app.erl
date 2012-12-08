@@ -8,6 +8,7 @@
 -export([start/2, stop/1]).
 
 start() ->
+  fubbit_records:module_info(), % really important shit. do not remove
   application:start(fubbit).
 
 %% ===================================================================

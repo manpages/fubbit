@@ -65,9 +65,11 @@ disconnect(PID) ->
 mq_run(PID, ActionDict, ArgDict) ->
   try % fuck me, why there isn't a better way to accomplish that?
     ActionBin = proplists:get_value(action, ActionDict),
-    binary_to_existing_atom(<<ActionBin/binary, "_ok">>, utf8),
+    binary_to_existing_atom(<<"#new-", ActionBin/binary, "_ok">>, utf8),
+    io:format("ouch~n"),
     mq_call(PID, ActionDict, ArgDict)
   catch _:_ ->
+    io:format("catch~n"),
     mq_cast(PID, ActionDict, ArgDict)
   end.
 
@@ -114,6 +116,29 @@ handle_call({connection, C, from, PID0}, _, State) ->
   {ok, Chan} = amqp_connection:open_channel(Con),
   {reply, ok, State#state{from=PID0,connection=Con,channel=Chan}};
 
+handle_call({mq_call, ActionDict, Args}, _, S) ->
+  io:format("calling the rabbit~n"),
+  ActBin =  proplists:get_value(action, ActionDict),
+  New = binary_to_existing_atom(
+    <<"#new-", ActBin/binary>>, 
+    utf8
+  ),
+  Ok = binary_to_existing_atom(
+    <<"#new-", ActBin/binary, "_ok">>,
+    utf8
+  ),
+  % todo: case relying on output_arity, has_payload and action
+  % skip it by now
+  Response = amqp_channel:call(
+    S#state.channel,
+    fubbit_records:'#fromlist-'(Args, fubbit_records:New())
+  ),
+  case fubbit_records:'#is_record'(Ok, Response) of
+    true -> {reply, ok, S};
+    _ ->    {reply, Response, S}
+  end;
+
+
 handle_call(R, _F, S) ->
   {reply, R, S}.
 
@@ -131,6 +156,7 @@ handle_cast(disconnect, State) ->
   {stop, shutdown, State};
 
 handle_cast({mq_cast, ActionDict, Args}, S) ->
+  io:format("casting the spell~n"),
   ActBin =  proplists:get_value(action, ActionDict),
   New = binary_to_existing_atom(
     <<"#new-", ActBin/binary>>, 
@@ -141,7 +167,8 @@ handle_cast({mq_cast, ActionDict, Args}, S) ->
   amqp_channel:cast(
     S#state.channel,
     fubbit_records:'#fromlist-'(Args, fubbit_records:New())
-  );
+  ),
+  {noreply, S};
 
 handle_cast(_, S) ->
   {noreply, S}.
