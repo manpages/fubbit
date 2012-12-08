@@ -12,8 +12,6 @@
 
 % generic wrappers
   ,mq_run/3
-  ,mq_cast/3 % asynchronous request to amqp_client
-  ,mq_call/3 % synchronous call to amqp_client
 
 % the main function that does pr0xying
   ,subscribe/2 % subscribes to queue and forwards content
@@ -80,7 +78,7 @@ mq_cast(PID, ActionDict, ArgDict) ->
 
 -spec mq_call(pid(), lists:proplist(), lists:proplist()) -> any().
 mq_call(PID, ActionDict, ArgDict) ->
-  gen_server:call(PID, {mq_call, ActionDict, ArgDict}).
+  gen_server:call(PID, {mq_call, ActionDict, ArgDict, []}).
 
 % subscribing to messages from queue to pass messages
 subscribe(_PID, _Q) -> ok.
@@ -117,30 +115,66 @@ handle_call({connection, C, from, PID0}, _, State) ->
   {ok, Chan} = amqp_connection:open_channel(Con),
   {reply, ok, State#state{from=PID0,connection=Con,channel=Chan}};
 
-handle_call({mq_call, ActionDict, Args}, _, S) ->
+handle_call({mq_call, ActionDict, Args, PayloadArgs}, _, S) ->
   io:format("calling the rabbit~n"),
-  ActBin =  proplists:get_value(action, ActionDict),
-  New = binary_to_existing_atom(
-    <<"#new-", ActBin/binary>>, 
+  ActionBin =  proplists:get_value(action, ActionDict),
+  ContentBin = proplists:get_value(content, ActionDict),
+  PayloadBin = proplists:get_value(payload, ActionDict),
+  NewActionF = binary_to_existing_atom(
+    <<"#new-", ActionBin/binary>>, 
     utf8
   ),
-  Ok = binary_to_atom(
-    <<ActBin/binary, "_ok">>,
+  NewPayloadF = case PayloadBin of
+    undefined -> undefined; 
+    _ -> binary_to_existing_atom(
+      <<"#new-", PayloadBin/binary, "_ok">>,
+      utf8
+    )
+  end,
+  OkT = binary_to_existing_atom(
+    <<ActionBin/binary, "_ok">>,
     utf8
   ),
-  % todo: case relying on output_arity, has_payload and action
-  % skip it by now
-  Response = amqp_channel:call(
-    S#state.channel,
-    fubbit_records:'#fromlist-'(Args, fubbit_records:New())
-  ),
-  case fubbit_records:'#is_record-'(Ok, Response) of
-    true -> 
-      io:format("the children always followed him~n"),
-      {reply, {ok, fubbit_records:to_list(Ok, Response)}, S};
-    _ ->    
-      io:format("he made them laugh, oh yes, he did~n"),
-      {reply, {notok, Response}, S}
+  ContentT = case ContentBin of
+    undefined -> undefined;
+    _ -> binary_to_existing_atom(
+      <<ContentBin/binary>>,
+      utf8
+    )
+  end,
+
+  Response = case NewPayloadF of
+    undefined -> amqp_channel:call(
+      S#state.channel,
+      fubbit_records:'#fromlist-'(Args, fubbit_records:NewActionF())
+    );
+    _ -> amqp_channel:call(
+      S#state.channel,
+      fubbit_records:'#fromlist-'(Args, fubbit_records:NewActionF()),
+      fubbit_records:'#fromlist-'(PayloadArgs, fubbit_records:NewPayloadF())
+    )
+  end,
+
+  case Response of
+    {OkRec, Content} -> case fubbit_records:'#is_record-'(OkT, OkRec) of
+      true ->
+        io:format("you've never gone too far to let go, all that you believe in.~n"),
+        {reply, {ok, { 
+          fubbit_records:to_list(OkT, OkRec), 
+          fubbit_records:to_list(ContentT, Content)
+        }}, S};
+      false -> % as far as I understand the code of amqp_client, that's impossible
+        io:format("you've never gone too far to turn back.~n"),
+        {reply, {notok, {OkRec, Content}}, S}
+      end;
+    _ -> case fubbit_records:'#is_record-'(OkT, Response) of
+      true -> 
+        io:format("the children always followed him~n"),
+        {reply, {ok, fubbit_records:to_list(OkT, Response)}, S};
+      _ ->    
+        io:format("he made them laugh, oh yes, he did~n"),
+        {reply, {notok, Response}, S}
+    end
   end;
 
 
