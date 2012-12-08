@@ -124,8 +124,8 @@ handle_call({mq_call, ActionDict, Args}, _, S) ->
     <<"#new-", ActBin/binary>>, 
     utf8
   ),
-  Ok = binary_to_existing_atom(
-    <<"#new-", ActBin/binary, "_ok">>,
+  Ok = binary_to_atom(
+    <<ActBin/binary, "_ok">>,
     utf8
   ),
   % todo: case relying on output_arity, has_payload and action
@@ -136,11 +136,11 @@ handle_call({mq_call, ActionDict, Args}, _, S) ->
   ),
   case fubbit_records:'#is_record-'(Ok, Response) of
     true -> 
-      io:format("the children always followed him"),
-      {reply, ok, S};
+      io:format("the children always followed him~n"),
+      {reply, {ok, fubbit_records:to_list(Ok, Response)}, S};
     _ ->    
-      io:format("he made them laugh, oh yes, he did"),
-      {reply, Response, S}
+      io:format("he made them laugh, oh yes, he did~n"),
+      {reply, {notok, Response}, S}
   end;
 
 
