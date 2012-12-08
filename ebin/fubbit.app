@@ -5,5 +5,5 @@
               {applications,[kernel,stdlib]},
               {mod,{fubbit_app,[]}},
               {env,[]},
-              {modules,[fubbit,fubbit_app,fubbit_connection,fubbit_records,
-                        fubbit_sup]}]}.
+              {modules,[fubbit,fubbit_app,fubbit_connection,fubbit_framing,
+                        fubbit_proxy,fubbit_records,fubbit_sup]}]}.

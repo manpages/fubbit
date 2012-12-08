@@ -8,7 +8,7 @@
 -export([start/2, stop/1]).
 
 start() ->
-  application:start(fubbit_app).
+  application:start(fubbit).
 
 %% ===================================================================
 %% Application callbacks

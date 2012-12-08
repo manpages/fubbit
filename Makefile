@@ -1,4 +1,4 @@
-.PHONY: all clean eunit ebin test deps cleandeps wipe
+.PHONY: all clean eunit ebin test deps cleandeps wipe erl
 
 all: deps ebin
 
@@ -25,3 +25,6 @@ wipe: clean cleandeps
 	@rm -rf ./deps/*
 	@rm -rf ./amqp_client
 	@rm -rf ./rabbit_common
+
+erl: all
+	erl -pa ./ebin/ ./deps/*/ebin ./amqp_client/ebin/ ./rabbit_common/ebin/ -boot start_sasl -s fubbit_app
