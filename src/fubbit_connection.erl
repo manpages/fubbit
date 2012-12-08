@@ -11,6 +11,7 @@
   ,disconnect/1  % closes channel, stops connection
 
 % generic wrappers
+  ,mq_run/3
   ,mq_cast/3 % asynchronous request to amqp_client
   ,mq_call/3 % synchronous call to amqp_client
 
@@ -60,20 +61,29 @@ disconnect(PID) ->
   gen_server:cast(PID, disconnect).
 
 % wrappers
+-spec mq_run(pid(), lists:proplist(), lists:proplist()) -> any().
+mq_run(PID, ActionDict, ArgDict) ->
+  try % fuck me, why there isn't a better way to accomplish that?
+    ActionBin = proplists:get_value(action, ActionDict),
+    binary_to_existing_atom(<<ActionBin/binary, "_ok">>, utf8),
+    mq_call(PID, ActionDict, ArgDict)
+  catch _:_ ->
+    mq_cast(PID, ActionDict, ArgDict)
+  end.
+
 -spec mq_cast(pid(), lists:proplist(), lists:proplist()) -> ok.
-mq_cast(PID, RecSpecDict, ArgDict) ->
-	ok.
+mq_cast(PID, ActionDict, ArgDict) ->
+  gen_server:cast(PID, {mq_cast, ActionDict, ArgDict}).
 
--spec mq_call(pid(), lists:proplist(), lists:proplist()) -> lists:proplist().
-mq_call(PID, RecSpecDict, ArgDict) ->
-	ok.
-
+-spec mq_call(pid(), lists:proplist(), lists:proplist()) -> any().
+mq_call(PID, ActionDict, ArgDict) ->
+  gen_server:call(PID, {mq_call, ActionDict, ArgDict}).
 
 % subscribing to messages from queue to pass messages
-subscribe(PID, _Q) -> ok.
+subscribe(_PID, _Q) -> ok.
 
 % configuration. hopefully, you won't need to touch that.
-set_prefetch_count(PID, _N) -> ok.
+set_prefetch_count(_PID, _N) -> ok.
 
 %%%%%%%%%%%%%%%%
 %% gen_server %%
@@ -82,16 +92,14 @@ set_prefetch_count(PID, _N) -> ok.
 start_link() ->
   gen_server:start_link(?MODULE, [], []).
 
+
 init(_A) ->
   {ok, #state{}}.
 
+
 -spec handle_call(
   {connection, lists:proplist(), from, pid()} |
-  {
-    declare_queue |
-    declare_exchange, 
-  lists:proplist()} |
-  declare_queue,
+  {mq_call, lists:proplist(), lists:proplist()},
   pid(), #state{}
 ) -> 
   {reply, 
@@ -106,25 +114,35 @@ handle_call({connection, C, from, PID0}, _, State) ->
   {ok, Chan} = amqp_connection:open_channel(Con),
   {reply, ok, State#state{from=PID0,connection=Con,channel=Chan}};
 
-handle_call({declare_queue, C}, _, State) -> 
-  #'queue.declare_ok'{queue=Name} = amqp_channel:call(
-    State#state.channel,
-    fubbit_records:'#fromlist-'(C, #'queue.declare'{})
-  ),
-  {reply, Name, State};
-
-handle_call(declare_queue, _, State) ->
-  #'queue.declare_ok'{queue=Name} = amqp_channel:call(
-    State#state.channel, #'queue.declare'{}),
-  {reply, Name, State};
-
 handle_call(R, _F, S) ->
   {reply, R, S}.
- 
+
+
+-spec handle_cast(
+  disconnect | 
+  {mq_cast, lists:proplist(), lists:proplist()},
+  #state{}
+) -> {stop, shutdown, #state{}} | 
+  {noreply, #state{}}.
+
 handle_cast(disconnect, State) ->
   amqp_channel:close(State#state.channel),
   amqp_connection:close(State#state.connection),
   {stop, shutdown, State};
+
+handle_cast({mq_cast, ActionDict, Args}, S) ->
+  ActBin =  proplists:get_value(action, ActionDict),
+  New = binary_to_existing_atom(
+    <<"#new-", ActBin/binary>>, 
+    utf8
+  ),
+  % todo: case relying on output_arity, has_payload and action
+  % skip it by now
+  amqp_channel:cast(
+    S#state.channel,
+    fubbit_records:'#fromlist-'(Args, fubbit_records:New())
+  );
+
 handle_cast(_, S) ->
   {noreply, S}.
 
