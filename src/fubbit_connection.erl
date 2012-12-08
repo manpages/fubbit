@@ -65,6 +65,7 @@ disconnect(PID) ->
 mq_run(PID, ActionDict, ArgDict) ->
   try % fuck me, why there isn't a better way to accomplish that?
     ActionBin = proplists:get_value(action, ActionDict),
+    io:format("running binary_to_existing_atom with ~n~p~n", [<<"#new-", ActionBin/binary, "_ok">>]),
     binary_to_existing_atom(<<"#new-", ActionBin/binary, "_ok">>, utf8),
     io:format("ouch~n"),
     mq_call(PID, ActionDict, ArgDict)
@@ -133,9 +134,13 @@ handle_call({mq_call, ActionDict, Args}, _, S) ->
     S#state.channel,
     fubbit_records:'#fromlist-'(Args, fubbit_records:New())
   ),
-  case fubbit_records:'#is_record'(Ok, Response) of
-    true -> {reply, ok, S};
-    _ ->    {reply, Response, S}
+  case fubbit_records:'#is_record-'(Ok, Response) of
+    true -> 
+      io:format("the children always followed him"),
+      {reply, ok, S};
+    _ ->    
+      io:format("he made them laugh, oh yes, he did"),
+      {reply, Response, S}
   end;
 
 

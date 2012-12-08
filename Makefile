@@ -26,5 +26,8 @@ wipe: clean cleandeps
 	@rm -rf ./amqp_client
 	@rm -rf ./rabbit_common
 
-erl: all
+sasl: all
 	erl -pa ./ebin/ ./deps/*/ebin ./amqp_client/ebin/ ./rabbit_common/ebin/ -boot start_sasl -s fubbit_app
+
+erl: all
+	erl -pa ./ebin/ ./deps/*/ebin ./amqp_client/ebin/ ./rabbit_common/ebin/ -s fubbit_app
