@@ -2,7 +2,7 @@ if [ ! -d "deps" ]; then
   mkdir "deps"
 fi
 
-if [ ! -d "amqp_client" ]; then
+if [ ! -d "deps/amqp_client" ]; then
   cd deps ;\
   hg clone http://hg.rabbitmq.com/rabbitmq-codegen ;\
   hg clone http://hg.rabbitmq.com/rabbitmq-server ;\
