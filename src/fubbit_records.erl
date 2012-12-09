@@ -2,7 +2,11 @@
 
 -compile({parse_transform, exprecs}).
 
--include("amqp_client/include/amqp_client.hrl").
+-include_lib("amqp_client/include/amqp_client.hrl").
+
+-export([
+   to_list/2
+]).
 
 -export_records([
    'connection.start'
@@ -124,9 +128,6 @@
   ,amqp_adapter_info
 ]).
 
--export([
-   to_list/2
-]).
 to_list(Record, Data) ->
   [{'#', Record} | 
     [ {X, fubbit_records:'#get-'(X, Data)} || X <- fubbit_records:'#info-'(Record, fields)] 

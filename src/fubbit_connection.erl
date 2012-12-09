@@ -2,7 +2,7 @@
 
 -behaviour(gen_server).
 
--include("amqp_client/include/amqp_client.hrl").
+-include_lib("amqp_client/include/amqp_client.hrl").
 
 %% API
 -export([

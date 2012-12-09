@@ -3,22 +3,22 @@
 all: deps ebin
 
 deps:
-	@sh ./get-rabbit-client.sh
-	@./rebar get-deps
+	sh ./get-rabbit-client.sh
+	./rebar -C .rebar.config get-deps
 
 ebin:
-	@./rebar compile
+	./rebar -C .rebar.config compile
 
 test: eunit
 
 eunit:
-	@./rebar skip_deps=true eunit
+	@./rebar -C .rebar.config skip_deps=true eunit
 
 clean:
-	@./rebar clean
+	@./rebar -C .rebar.config clean
 
 cleandeps:
-	@./rebar delete-deps
+	@./rebar -C .rebar.config delete-deps
 
 wipe: clean cleandeps
 	@rm *.dump || true

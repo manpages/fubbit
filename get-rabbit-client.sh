@@ -12,7 +12,7 @@ if [ ! -d "amqp_client" ]; then
   cd .. ;\
   rm -rf amqp_client-* ;\
   rm -rf rabbit_common-* ;\
-  cd .. ;\
-  cp -R deps/rabbitmq-erlang-client/dist/amqp_client-*/ amqp_client ;\
-  cp -R deps/rabbitmq-erlang-client/dist/rabbit_common-*/ rabbit_common
+  
+  cp -R rabbitmq-erlang-client/dist/amqp_client-*/ amqp_client ;\
+  cp -R rabbitmq-erlang-client/dist/rabbit_common-*/ rabbit_common
 fi
